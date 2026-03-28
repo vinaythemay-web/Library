@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LibraryMS — Sign In</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { display: flex; min-height: 100vh; align-items: center; justify-content: center; padding: 20px; }
+    .split { display: grid; grid-template-columns: 1fr 420px; min-height: 100vh; width: 100%; max-width: 1000px; margin: auto; }
+    .split-left {
+      background: var(--primary); border-radius: 0 16px 16px 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 48px 40px; color: #fff;
+    }
+    .split-left svg { width: 56px; height: 56px; margin-bottom: 24px; opacity: 0.9; }
+    .split-left h2 { font-size: 24px; font-weight: 600; margin-bottom: 10px; }
+    .split-left p { font-size: 14px; opacity: 0.75; line-height: 1.7; text-align: center; max-width: 280px; }
+    .feature-list { margin-top: 28px; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .feature-list li { display: flex; align-items: center; gap: 10px; font-size: 13px; opacity: 0.85; }
+    .feat-dot { width: 8px; height: 8px; background: rgba(255,255,255,0.5); border-radius: 50%; flex-shrink: 0; }
+
+    .split-right { display: flex; align-items: center; justify-content: center; padding: 40px 32px; }
+    .auth-box { width: 100%; max-width: 380px; }
+    .auth-header { margin-bottom: 28px; }
+    .auth-header h1 { font-size: 22px; font-weight: 600; }
+    .auth-header p { color: var(--text-muted); font-size: 14px; margin-top: 4px; }
+
+    @media (max-width: 720px) {
+      .split { grid-template-columns: 1fr; }
+      .split-left { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="split">
+  <!-- Left panel -->
+  <div class="split-left">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+    </svg>
+    <h2>LibraryMS</h2>
+    <p>A complete library management system for schools and public libraries.</p>
+    <ul class="feature-list">
+      <li><span class="feat-dot"></span> Manage your entire book catalog</li>
+      <li><span class="feat-dot"></span> Track lending and returns</li>
+      <li><span class="feat-dot"></span> Automatic overdue fine calculation</li>
+      <li><span class="feat-dot"></span> Member management</li>
+    </ul>
+  </div>
+
+  <!-- Right: Auth forms -->
+  <div class="split-right">
+    <div class="auth-box">
+      <div class="auth-header">
+        <h1 id="formTitle">Welcome back</h1>
+        <p id="formSub">Sign in to your library account</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="showTab('login')" id="tabLogin">Sign In</button>
+        <button class="auth-tab" onclick="showTab('signup')" id="tabSignup">Register</button>
+      </div>
+
+      <div id="msg"></div>
+
+      <!-- ── Login Form ── -->
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label for="loginEmail">Email address</label>
+          <input type="email" id="loginEmail" placeholder="you@example.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="loginPw">Password</label>
+          <input type="password" id="loginPw" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:10px 16px;font-size:14px;" id="loginBtn" data-label="Sign in">
+          Sign in
+        </button>
+        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--text-muted)">
+          Forgot your password?
+          <a href="#" style="color:var(--primary)" onclick="handleForgotPassword()">Reset it</a>
+        </p>
+      </form>
+
+      <!-- ── Signup Form ── -->
+      <form id="signupForm" style="display:none" onsubmit="handleSignup(event)">
+        <div class="form-group">
+          <label>Full name</label>
+          <input type="text" id="sgName" placeholder="Jane Smith" required>
+        </div>
+        <div class="form-group">
+          <label>Email address</label>
+          <input type="email" id="sgEmail" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="sgPw" placeholder="Min. 6 chars" required>
+        </div>
+        <div class="form-group">
+          <label>Phone (optional)</label>
+          <input type="tel" id="sgPhone" placeholder="+91 98765 43210">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:10px 16px;font-size:14px;" id="signupBtn" data-label="Create account">
+          Create account
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script>
+  // Redirect if already logged in
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) window.location.href = 'dashboard.html';
+  });
+
+  function showTab(tab) {
+    const isLogin = tab === 'login';
+    document.getElementById('loginForm').style.display  = isLogin ? '' : 'none';
+    document.getElementById('signupForm').style.display = isLogin ? 'none' : '';
+    document.getElementById('tabLogin').classList.toggle('active',  isLogin);
+    document.getElementById('tabSignup').classList.toggle('active', !isLogin);
+    document.getElementById('formTitle').textContent = isLogin ? 'Welcome back' : 'Create account';
+    document.getElementById('formSub').textContent   = isLogin ? 'Sign in to your library account' : 'Register as a new member or admin';
+    document.getElementById('msg').innerHTML = '';
+  }
+
+  function showMsg(msg, type = 'error') {
+    document.getElementById('msg').innerHTML = `<div class="alert alert-${type === 'success' ? 'success' : 'error'}">${msg}</div>`;
+  }
+
+  async function handleLogin(e) {
+    e.preventDefault();
+    const btn = document.getElementById('loginBtn');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: document.getElementById('loginEmail').value,
+        password: document.getElementById('loginPw').value,
+      });
+      if (error) { showMsg(error.message); btn.disabled = false; btn.textContent = 'Sign in'; return; }
+      window.location.href = 'dashboard.html';
+    } catch (err) {
+      showMsg('An unexpected error occurred: ' + err.message);
+      btn.disabled = false; btn.textContent = 'Sign in';
+    }
+  }
+
+  async function handleSignup(e) {
+    e.preventDefault();
+    const btn = document.getElementById('signupBtn');
+    btn.disabled = true; btn.textContent = 'Creating account…';
+    const name     = document.getElementById('sgName').value.trim();
+    const email    = document.getElementById('sgEmail').value.trim();
+    const password = document.getElementById('sgPw').value;
+    
+    // Hardcode: these emails automatically get the 'admin' role
+    const ADMIN_EMAILS = ['kvinay00912@gmail.com', 'test4420v@gmail.com'];
+    const role         = ADMIN_EMAILS.includes(email.toLowerCase()) ? 'admin' : 'member';
+    
+    // Auto-generate a 6-digit unique member ID (e.g. LIB-849201)
+    const memberId = 'LIB-' + Math.floor(100000 + Math.random() * 900000);
+    const phone    = document.getElementById('sgPhone').value.trim() || null;
+
+    try {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) { 
+        showMsg(error.message); 
+        return; 
+      }
+      
+      if (!data || !data.user) {
+        showMsg('Account creation failed. User might already exist.');
+        return;
+      }
+
+      const { error: profileErr } = await supabase.from('profiles').insert({
+        id: data.user.id, name, email, role, member_id: memberId, phone
+      });
+      
+      if (profileErr) { 
+        showMsg('Account created but profile save failed: ' + profileErr.message); 
+      } else { 
+        showMsg('Account created! You can now sign in.', 'success'); 
+        showTab('login'); 
+      }
+    } catch (err) {
+      showMsg('An unexpected error occurred: ' + err.message);
+    } finally {
+      btn.disabled = false; 
+      btn.textContent = 'Create account';
+    }
+  }
+
+  async function handleForgotPassword() {
+    const email = document.getElementById('loginEmail').value.trim();
+    if (!email) { showMsg('Enter your email address first.'); return; }
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    if (error) showMsg(error.message);
+    else showMsg('Password reset email sent. Check your inbox.', 'success');
+  }
+</script>
+</body>
+</html>

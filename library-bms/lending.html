@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LibraryMS — Lend a Book</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+    <div class="page-header">
+      <h1>Lend a Book</h1>
+      <p>Issue a book to a library member in three steps</p>
+    </div>
+
+    <!-- Step indicator -->
+    <div class="steps" id="stepsBar">
+      <div class="step-item active" id="step1Ind">
+        <div class="step-num">1</div>
+        <div class="step-label">Select Member</div>
+      </div>
+      <div class="step-divider"></div>
+      <div class="step-item" id="step2Ind">
+        <div class="step-num">2</div>
+        <div class="step-label">Select Book</div>
+      </div>
+      <div class="step-divider"></div>
+      <div class="step-item" id="step3Ind">
+        <div class="step-num">3</div>
+        <div class="step-label">Confirm & Issue</div>
+      </div>
+    </div>
+
+    <div id="msgBar"></div>
+
+    <div class="two-col" style="align-items:start">
+      <!-- Step panels (left) -->
+      <div>
+        <!-- Step 1: Member -->
+        <div class="card" id="step1Panel">
+          <div class="card-header">
+            <span class="card-title">1 — Select Member</span>
+          </div>
+          <div id="memberSelected" style="display:none" class="selected-chip" style="margin-bottom:12px">
+            <div>
+              <div class="chip-label" id="memberName">—</div>
+              <div class="chip-sub" id="memberSub">—</div>
+            </div>
+            <button class="chip-clear" onclick="clearMember()" title="Change member">✕</button>
+          </div>
+          <div id="memberSearchArea">
+            <div class="search-wrap" style="margin-bottom:10px">
+              <span class="search-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+              <input type="text" id="memberSearch" placeholder="Search by name or member ID…" oninput="searchMembers()" style="padding-left:36px">
+            </div>
+            <div id="memberResults" class="result-list" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- Step 2: Book -->
+        <div class="card" id="step2Panel" style="opacity:0.45;pointer-events:none">
+          <div class="card-header">
+            <span class="card-title">2 — Select Book</span>
+          </div>
+          <div id="bookSelected" style="display:none" class="selected-chip">
+            <div>
+              <div class="chip-label" id="bookTitle">—</div>
+              <div class="chip-sub" id="bookSub">—</div>
+            </div>
+            <button class="chip-clear" onclick="clearBook()" title="Change book">✕</button>
+          </div>
+          <div id="bookSearchArea">
+            <div class="search-wrap" style="margin-bottom:10px">
+              <span class="search-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+              <input type="text" id="bookSearch" placeholder="Search available books…" oninput="searchBooks()" style="padding-left:36px">
+            </div>
+            <div id="bookResults" class="result-list" style="display:none"></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Confirm -->
+        <div class="card" id="step3Panel" style="opacity:0.45;pointer-events:none">
+          <div class="card-header">
+            <span class="card-title">3 — Confirm &amp; Issue</span>
+          </div>
+
+          <div class="form-group">
+            <label for="dueDate">Due Date</label>
+            <input type="date" id="dueDate">
+          </div>
+
+          <div class="summary-box" style="margin-bottom:18px">
+            <div class="summary-row"><span class="summary-label">Member</span><span class="summary-value" id="confMember">—</span></div>
+            <div class="summary-row"><span class="summary-label">Book</span><span class="summary-value" id="confBook">—</span></div>
+            <div class="summary-row"><span class="summary-label">Lend Date</span><span class="summary-value" id="confLentDate">—</span></div>
+            <div class="summary-row"><span class="summary-label">Due Date</span><span class="summary-value" id="confDueDate">—</span></div>
+            <div class="summary-row"><span class="summary-label">Duration</span><span class="summary-value" id="confDuration">7 days</span></div>
+          </div>
+
+          <button class="btn btn-primary" style="width:100%;justify-content:center;padding:10px" id="issueBtn" onclick="issueLending()" data-label="Issue Book">
+            Issue Book
+          </button>
+        </div>
+      </div>
+
+      <!-- Right: Recent lendings -->
+      <div class="card" style="min-height:200px">
+        <div class="card-header">
+          <span class="card-title">Recent Issues</span>
+          <a href="returning.html" class="btn btn-secondary btn-sm">Return a Book</a>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Member</th><th>Book</th><th>Due</th><th>Status</th></tr></thead>
+            <tbody id="recentBody">
+              <tr><td colspan="4"><div class="empty-state"><p>Loading…</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+<script>
+let selectedMember = null;
+let selectedBook   = null;
+
+async function init() {
+  const profile = await initSidebar('lending');
+  if (profile?.role !== 'admin') { window.location.href = 'dashboard.html'; return; }
+  setDueDateDefault();
+  loadRecentLendings();
+}
+
+function setDueDateDefault() {
+  document.getElementById('dueDate').value = defaultDueDate(7);
+  document.getElementById('dueDate').addEventListener('change', updateConfirm);
+  document.getElementById('confLentDate').textContent = formatDate(new Date().toISOString());
+  updateConfirm();
+}
+
+// ── Step indicator ────────────────────────────────────────────────
+
+function updateSteps() {
+  const s1 = !!selectedMember, s2 = !!selectedBook;
+  // Step 1
+  document.getElementById('step1Ind').className = 'step-item ' + (s1 ? 'done' : 'active');
+  // Step 2
+  document.getElementById('step2Ind').className = 'step-item ' + (s1 && s2 ? 'done' : s1 ? 'active' : '');
+  document.getElementById('step2Panel').style.opacity        = s1 ? '1' : '0.45';
+  document.getElementById('step2Panel').style.pointerEvents  = s1 ? '' : 'none';
+  // Step 3
+  document.getElementById('step3Ind').className = 'step-item ' + (s1 && s2 ? 'active' : '');
+  document.getElementById('step3Panel').style.opacity        = (s1 && s2) ? '1' : '0.45';
+  document.getElementById('step3Panel').style.pointerEvents  = (s1 && s2) ? '' : 'none';
+}
+
+// ── Member search ─────────────────────────────────────────────────
+
+let memberTimer;
+async function searchMembers() {
+  clearTimeout(memberTimer);
+  const q = document.getElementById('memberSearch').value.trim();
+  const res = document.getElementById('memberResults');
+  if (q.length < 1) { res.style.display = 'none'; return; }
+  memberTimer = setTimeout(async () => {
+    const { data } = await supabase.from('profiles')
+      .select('id, name, email, member_id, role')
+      .or(`name.ilike.%${q}%,member_id.ilike.%${q}%`)
+      .limit(8);
+    if (!data || !data.length) { res.style.display = 'none'; return; }
+    res.style.display = '';
+    res.innerHTML = data.map(m => `
+      <div class="result-item" onclick='pickMember(${JSON.stringify(m)})'>
+        <div>
+          <div class="result-item-name">${m.name}</div>
+          <div class="result-item-sub">${m.member_id || m.email || ''}</div>
+        </div>
+        <span class="badge badge-${m.role}">${m.role}</span>
+      </div>`).join('');
+  }, 250);
+}
+
+function pickMember(m) {
+  selectedMember = m;
+  document.getElementById('memberName').textContent = m.name;
+  document.getElementById('memberSub').textContent  = m.member_id ? `ID: ${m.member_id}` : m.email;
+  document.getElementById('memberSelected').style.display = '';
+  document.getElementById('memberSearchArea').style.display = 'none';
+  updateSteps(); updateConfirm();
+}
+
+function clearMember() {
+  selectedMember = null;
+  document.getElementById('memberSelected').style.display = 'none';
+  document.getElementById('memberSearchArea').style.display = '';
+  document.getElementById('memberSearch').value = '';
+  document.getElementById('memberResults').style.display = 'none';
+  updateSteps(); updateConfirm();
+}
+
+// ── Book search ───────────────────────────────────────────────────
+
+let bookTimer;
+async function searchBooks() {
+  clearTimeout(bookTimer);
+  const q = document.getElementById('bookSearch').value.trim();
+  const res = document.getElementById('bookResults');
+  if (q.length < 1) { res.style.display = 'none'; return; }
+  bookTimer = setTimeout(async () => {
+    const { data } = await supabase.from('books')
+      .select('id, title, author, genre, available_copies')
+      .or(`title.ilike.%${q}%,author.ilike.%${q}%`)
+      .gt('available_copies', 0)
+      .limit(8);
+    if (!data || !data.length) {
+      res.style.display = '';
+      res.innerHTML = `<div class="result-item" style="cursor:default;color:var(--text-muted)">No available books match "${q}"</div>`;
+      return;
+    }
+    res.style.display = '';
+    res.innerHTML = data.map(b => `
+      <div class="result-item" onclick='pickBook(${JSON.stringify(b)})'>
+        <div>
+          <div class="result-item-name">${b.title}</div>
+          <div class="result-item-sub">${b.author} · ${b.genre || 'General'}</div>
+        </div>
+        <span class="badge badge-available">${b.available_copies} left</span>
+      </div>`).join('');
+  }, 250);
+}
+
+function pickBook(b) {
+  selectedBook = b;
+  document.getElementById('bookTitle').textContent = b.title;
+  document.getElementById('bookSub').textContent   = `${b.author} · ${b.genre || 'General'}`;
+  document.getElementById('bookSelected').style.display = '';
+  document.getElementById('bookSearchArea').style.display = 'none';
+  updateSteps(); updateConfirm();
+}
+
+function clearBook() {
+  selectedBook = null;
+  document.getElementById('bookSelected').style.display = 'none';
+  document.getElementById('bookSearchArea').style.display = '';
+  document.getElementById('bookSearch').value = '';
+  document.getElementById('bookResults').style.display = 'none';
+  updateSteps(); updateConfirm();
+}
+
+// ── Confirm panel ─────────────────────────────────────────────────
+
+function updateConfirm() {
+  document.getElementById('confMember').textContent  = selectedMember?.name || '—';
+  document.getElementById('confBook').textContent    = selectedBook?.title  || '—';
+  const due = document.getElementById('dueDate').value;
+  document.getElementById('confDueDate').textContent = due ? formatDate(due) : '—';
+  if (due) {
+    const days = Math.round((new Date(due) - new Date()) / 86400000);
+    document.getElementById('confDuration').textContent = days > 0 ? `${days} days` : '—';
+  }
+}
+
+// ── Issue ─────────────────────────────────────────────────────────
+
+async function issueLending() {
+  if (!selectedMember || !selectedBook) { showToast('Select both member and book first.', 'error'); return; }
+  const due = document.getElementById('dueDate').value;
+  if (!due) { showToast('Please set a due date.', 'error'); return; }
+
+  const btn = document.getElementById('issueBtn');
+  btn.disabled = true; btn.textContent = 'Issuing…';
+  document.getElementById('msgBar').innerHTML = '';
+
+  // Insert lending record
+  const { error: lendErr } = await supabase.from('lendings').insert({
+    book_id:   selectedBook.id,
+    member_id: selectedMember.id,
+    due_date:  due,
+    status:    'active'
+  });
+
+  if (lendErr) {
+    showToast('Error: ' + lendErr.message, 'error');
+    btn.disabled = false; btn.textContent = 'Issue Book';
+    return;
+  }
+
+  // Decrement available copies
+  await supabase.from('books')
+    .update({ available_copies: selectedBook.available_copies - 1 })
+    .eq('id', selectedBook.id);
+
+  showToast(`"${selectedBook.title}" issued to ${selectedMember.name}!`);
+
+  document.getElementById('msgBar').innerHTML = `<div class="alert alert-success">
+    ✅ <strong>${selectedBook.title}</strong> issued to <strong>${selectedMember.name}</strong>.
+    Due: ${formatDate(due)}
+  </div>`;
+
+  clearMember(); clearBook();
+  btn.disabled = false; btn.textContent = 'Issue Book';
+  loadRecentLendings();
+}
+
+// ── Recent lendings ───────────────────────────────────────────────
+
+async function loadRecentLendings() {
+  const { data } = await supabase
+    .from('lendings')
+    .select('*, book:books(title), member:profiles(name)')
+    .eq('status', 'active')
+    .order('lent_at', { ascending: false })
+    .limit(10);
+
+  const tbody = document.getElementById('recentBody');
+  const today = new Date(); today.setHours(0,0,0,0);
+  if (!data || !data.length) { tbody.innerHTML = `<tr><td colspan="4">${emptyState('No active lendings.')}</td></tr>`; return; }
+  tbody.innerHTML = data.map(l => {
+    const overdue = new Date(l.due_date) < today;
+    return `<tr>
+      <td data-label="Member">${l.member?.name || '—'}</td>
+      <td data-label="Book">${l.book?.title  || '—'}</td>
+      <td data-label="Due" style="color:${overdue ? 'var(--danger)' : 'inherit'}">${formatDate(l.due_date)}</td>
+      <td data-label="Status"><span class="badge badge-${overdue ? 'overdue' : 'lent'}">${overdue ? 'Overdue' : 'Active'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+init();
+</script>
+</body>
+</html>

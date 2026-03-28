@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LibraryMS — Add New Book</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+    <div class="page-header">
+      <h1>Add New Book</h1>
+      <p>Add a new book to the library catalog</p>
+    </div>
+
+    <div id="msgBar"></div>
+
+    <div class="card" style="max-width: 600px; margin: 0 auto;">
+      <div class="card-header">
+        <span class="card-title">Book Details</span>
+      </div>
+
+      <form id="addBookForm" onsubmit="handleAddBook(event)">
+        <div class="form-group">
+          <label for="bookTitle">Title</label>
+          <input type="text" id="bookTitle" placeholder="The Great Gatsby" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="bookAuthor">Author</label>
+          <input type="text" id="bookAuthor" placeholder="F. Scott Fitzgerald" required>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <div class="form-group">
+            <label for="bookGenre">Genre</label>
+            <select id="bookGenre">
+              <option>Fiction</option>
+              <option>Science</option>
+              <option>History</option>
+              <option>Technology</option>
+              <option>Mathematics</option>
+              <option>Literature</option>
+              <option>Arts</option>
+              <option>Sports</option>
+              <option>Health</option>
+              <option>Business</option>
+              <option>General</option>
+            </select>
+          </div>
+          
+          <div class="form-group">
+            <label for="bookIsbn">ISBN (optional)</label>
+            <input type="text" id="bookIsbn" placeholder="978-0743273565">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="bookCopies">Total Copies</label>
+          <input type="number" id="bookCopies" min="1" value="1" required style="max-width: 150px;">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;margin-top:20px;" id="addBtn" data-label="Add Book to Catalog">
+          Add Book to Catalog
+        </button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+<script>
+async function init() {
+  const profile = await initSidebar('addbook');
+  if (profile?.role !== 'admin') { window.location.href = 'dashboard.html'; return; }
+}
+
+async function handleAddBook(e) {
+  e.preventDefault();
+  const btn = document.getElementById('addBtn');
+  setLoading(btn, true, 'Adding book...');
+  
+  const title = document.getElementById('bookTitle').value.trim();
+  const author = document.getElementById('bookAuthor').value.trim();
+  const genre = document.getElementById('bookGenre').value;
+  const isbn = document.getElementById('bookIsbn').value.trim() || null;
+  const copies = parseInt(document.getElementById('bookCopies').value, 10);
+
+  const { data, error } = await supabase.from('books').insert({
+    title,
+    author,
+    genre,
+    isbn,
+    total_copies: copies,
+    available_copies: copies
+  });
+
+  if (error) {
+    document.getElementById('msgBar').innerHTML = `<div class="alert alert-error">Failed to add book: ${error.message}</div>`;
+  } else {
+    document.getElementById('msgBar').innerHTML = `<div class="alert alert-success">✅ <strong>${title}</strong> has been added to the catalog!</div>`;
+    document.getElementById('addBookForm').reset();
+    document.getElementById('bookGenre').value = 'Fiction';
+  }
+  
+  setLoading(btn, false);
+}
+
+init();
+</script>
+</body>
+</html>

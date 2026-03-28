@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LibraryMS — Browse Books</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .view-toggle { display: flex; background: var(--bg); border-radius: 8px; padding: 3px; }
+    .view-btn { padding: 6px 10px; border-radius: 6px; background: none; border: none; cursor: pointer; color: var(--text-muted); transition: all 0.12s; }
+    .view-btn.active { background: var(--white); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .view-btn svg { width: 16px; height: 16px; display: block; }
+    #listView { display: none; }
+
+    /* Book detail panel */
+    .detail-panel {
+      position: fixed; top: 0; right: -420px; width: 400px;
+      height: 100vh; background: var(--white);
+      border-left: 1px solid var(--border);
+      z-index: 200; transition: right 0.25s;
+      overflow-y: auto; padding: 28px;
+    }
+    .detail-panel.open { right: 0; }
+    .detail-overlay {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.3);
+      z-index: 199; display: none;
+    }
+    .detail-overlay.open { display: block; }
+    .detail-cover {
+      width: 100%; height: 180px;
+      background: var(--primary-light);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 56px; margin-bottom: 20px;
+    }
+    .detail-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+    .detail-author { color: var(--text-muted); font-size: 14px; margin-bottom: 14px; }
+    .detail-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+    .meta-item { background: var(--bg); border-radius: 8px; padding: 10px 12px; }
+    .meta-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+    .meta-value { font-size: 14px; font-weight: 500; }
+
+    /* Availability bar */
+    .avail-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+    .avail-fill { height: 100%; background: var(--success); border-radius: 3px; transition: width 0.3s; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar" id="sidebar"></aside>
+
+  <main class="main">
+    <div class="page-header-row page-header">
+      <div>
+        <h1>Browse Books</h1>
+        <p id="bookCount">Loading catalog…</p>
+      </div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-wrap" style="flex:1;min-width:220px">
+        <span class="search-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input type="text" placeholder="Search by title, author…" id="searchInput" oninput="applyFilters()" style="padding-left:36px">
+      </div>
+      <select class="filter-select" id="genreFilter" onchange="applyFilters()">
+        <option value="">All genres</option>
+        <option>Fiction</option><option>Science</option><option>History</option>
+        <option>Technology</option><option>Mathematics</option><option>Literature</option>
+        <option>Arts</option><option>Sports</option><option>Health</option>
+        <option>Business</option><option>General</option>
+      </select>
+      <select class="filter-select" id="availFilter" onchange="applyFilters()">
+        <option value="">All books</option>
+        <option value="available">Available only</option>
+        <option value="lent">Currently lent</option>
+      </select>
+      <div class="view-toggle">
+        <button class="view-btn active" id="gridBtn" onclick="setView('grid')" title="Grid view">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </button>
+        <button class="view-btn" id="listBtn" onclick="setView('list')" title="List view">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Grid view -->
+    <div class="books-grid" id="gridView"></div>
+
+    <!-- List view -->
+    <div id="listView">
+      <div class="card" style="padding:0">
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Title</th><th>Author</th><th>Genre</th><th>ISBN</th><th>Availability</th><th></th></tr></thead>
+            <tbody id="listBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Book detail panel overlay -->
+<div class="detail-overlay" id="detailOverlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <span style="font-size:13px;color:var(--text-muted)">Book Details</span>
+    <button onclick="closeDetail()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;border-radius:6px;font-size:20px">✕</button>
+  </div>
+  <div id="detailContent"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script src="js/app.js"></script>
+<script>
+let allBooks = [];
+let currentView = 'grid';
+
+async function init() {
+  currentUser = await initSidebar('search');
+  await loadBooks();
+}
+
+async function loadBooks() {
+  const { data, error } = await supabase.from('books').select('*').order('title');
+  if (error) { showToast('Failed to load books', 'error'); return; }
+  allBooks = data || [];
+  applyFilters();
+}
+
+function applyFilters() {
+  const q     = document.getElementById('searchInput').value.toLowerCase().trim();
+  const genre = document.getElementById('genreFilter').value;
+  const avail = document.getElementById('availFilter').value;
+
+  let results = allBooks.filter(b => {
+    const matchQ = !q || b.title.toLowerCase().includes(q) || b.author.toLowerCase().includes(q) || (b.isbn && b.isbn.includes(q));
+    const matchG = !genre || b.genre === genre;
+    const matchA = !avail ||
+      (avail === 'available' && b.available_copies > 0) ||
+      (avail === 'lent'      && b.available_copies === 0);
+    return matchQ && matchG && matchA;
+  });
+
+  document.getElementById('bookCount').textContent = `${results.length} book${results.length !== 1 ? 's' : ''} found`;
+  renderGrid(results);
+  renderList(results);
+}
+
+function setView(v) {
+  currentView = v;
+  document.getElementById('gridView').style.display = v === 'grid' ? '' : 'none';
+  document.getElementById('listView').style.display = v === 'list' ? '' : 'none';
+  document.getElementById('gridBtn').classList.toggle('active', v === 'grid');
+  document.getElementById('listBtn').classList.toggle('active', v === 'list');
+}
+
+function renderGrid(books) {
+  const el = document.getElementById('gridView');
+  if (!books.length) { el.innerHTML = emptyState('No books match your filters.'); return; }
+  el.innerHTML = books.map(b => {
+    const pct = b.total_copies > 0 ? Math.round((b.available_copies / b.total_copies) * 100) : 0;
+    return `
+      <div class="book-card" onclick='openDetail(${JSON.stringify(b).replace(/'/g,"&#39;")})'>
+        <div class="book-cover">${genreEmoji(b.genre)}</div>
+        <div class="book-title">${b.title}</div>
+        <div class="book-author">${b.author}</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <span class="badge badge-${b.available_copies > 0 ? 'available' : 'lent'}">
+            ${b.available_copies > 0 ? b.available_copies + ' available' : 'All lent'}
+          </span>
+          <span style="font-size:11px;color:var(--text-muted)">${b.genre || 'General'}</span>
+        </div>
+        <div class="avail-bar"><div class="avail-fill" style="width:${pct}%"></div></div>
+      </div>`;
+  }).join('');
+}
+
+function renderList(books) {
+  const tbody = document.getElementById('listBody');
+  if (!books.length) { tbody.innerHTML = `<tr><td colspan="6">${emptyState('No books match your filters.')}</td></tr>`; return; }
+  tbody.innerHTML = books.map(b => `
+    <tr>
+      <td><strong>${b.title}</strong></td>
+      <td>${b.author}</td>
+      <td><span class="badge badge-member">${b.genre || 'General'}</span></td>
+      <td style="color:var(--text-muted);font-size:12px">${b.isbn || '—'}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge badge-${b.available_copies > 0 ? 'available' : 'lent'}">
+            ${b.available_copies}/${b.total_copies} available
+          </span>
+        </div>
+      </td>
+      <td>
+        <button class="btn btn-secondary btn-sm" onclick='openDetail(${JSON.stringify(b).replace(/'/g,"&#39;")})'>View</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openDetail(book) {
+  const pct = book.total_copies > 0 ? Math.round((book.available_copies / book.total_copies) * 100) : 0;
+  document.getElementById('detailContent').innerHTML = `
+    <div class="detail-cover">${genreEmoji(book.genre)}</div>
+    <div class="detail-title">${book.title}</div>
+    <div class="detail-author">by ${book.author}</div>
+
+    <div class="detail-meta">
+      <div class="meta-item">
+        <div class="meta-label">Genre</div>
+        <div class="meta-value">${book.genre || 'General'}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">ISBN</div>
+        <div class="meta-value" style="font-size:12px">${book.isbn || '—'}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Total Copies</div>
+        <div class="meta-value">${book.total_copies}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Available</div>
+        <div class="meta-value" style="color:${book.available_copies > 0 ? 'var(--success)' : 'var(--danger)'}">
+          ${book.available_copies}
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+        <span style="color:var(--text-muted)">Availability</span>
+        <span style="font-weight:500">${pct}%</span>
+      </div>
+      <div class="avail-bar" style="height:8px">
+        <div class="avail-fill" style="width:${pct}%"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px">
+      ${currentUser?.role === 'admin' ? `
+      <a href="lending.html" class="btn btn-primary" style="flex:1;justify-content:center" ${book.available_copies === 0 ? 'style="opacity:0.5;pointer-events:none"' : ''}>
+        ${book.available_copies > 0 ? 'Issue This Book' : 'Not Available'}
+      </a>
+      <button onclick='deleteBook("${book.id}", "${book.title.replace(/"/g, '&quot;')}")' class="btn btn-secondary" style="flex-shrink:0;color:var(--danger);border-color:var(--danger);justify-content:center">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+      ` : `
+      <div style="flex:1;text-align:center;padding:10px;background:var(--bg);border-radius:6px;font-size:13px;color:var(--text-muted)">
+        Please see the librarian to issue this book.
+      </div>
+      `}
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-top:8px">Added ${formatDate(book.added_at)}</p>
+  `;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('detailOverlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('detailOverlay').classList.remove('open');
+}
+
+async function deleteBook(id, title) {
+  const confirmed = await customConfirm(
+    'Delete Book',
+    `Are you sure you want to permanently delete "<strong>${title}</strong>" from the catalog?<br>This action cannot be undone.`,
+    'Delete Permanently',
+    'danger'
+  );
+  if (!confirmed) return;
+  
+  const { error } = await supabase.from('books').delete().eq('id', id);
+  if (error) {
+    if (error.code === '23503') {
+      showToast('Cannot delete! This book is currently linked to lending records.', 'error');
+    } else {
+      showToast('Failed to delete book: ' + error.message, 'error');
+    }
+  } else {
+    showToast(`"${title}" deleted successfully!`);
+    closeDetail();
+    await loadBooks();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
